@@ -1,0 +1,44 @@
+name: Build Pip Mod
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.5'
+
+      - name: Build
+        run: |
+          echo "=== Files in repo ==="
+          find . -not -path "./.git/*" -maxdepth 3 | sort
+          echo "====================="
+          shopt -s nullglob
+          for z in *.zip; do mkdir -p _unzipped && unzip -oq "$z" -d _unzipped; done
+          SETTINGS=$(find . -name settings.gradle -not -path "./.git/*" | head -n 1)
+          if [ -z "$SETTINGS" ]; then
+            echo "ERROR: no settings.gradle anywhere in this repo (see file list above)"
+            exit 1
+          fi
+          cd "$(dirname "$SETTINGS")"
+          echo "Building in: $(pwd)"
+          gradle build --no-daemon
+          mkdir -p "$GITHUB_WORKSPACE/out" && cp build/libs/*.jar "$GITHUB_WORKSPACE/out/"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: piphorror-mod
+          path: out/*.jar
+          if-no-files-found: error
